@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Bad Semantle</title>
+        <link rel="shortcut icon" type="image/png" href="assets/favicon.png" />
+    </head>
+    <body>
+        <style type="text/css">
+            table {
+                border-collapse: collapse;
+                font-size:  22px;
+            }
+            th {
+                padding: 5px;
+                text-align: left;
+                border-bottom: 1px solid black;
+            }
+            td {
+                padding: 5px;
+            }
+            tr.bodyRow > td:first-child {
+                border-right: 1px solid black;
+            }
+            table > tr:nth-child(2) {
+                background-color: palegoldenrod;
+                border-bottom: 1px solid black;
+            }
+        </style>
+        <div
+            style="
+                width: 95%;
+                margin-top: 5%;
+                margin-left: auto;
+                margin-right: auto;
+            "
+        >
+            <div style="font-size: 32px; margin: 0 auto; text-align: center;">
+                Welcome To Bad Semantle
+            </div>
+            <div style="font-size: 24px; margin-top: 15px;">
+                The nearest neighbor to today's secret word is
+                <span id="neighborSimilarity"></span> similar. Good Luck!
+            </div>
+            <div style="margin-top: 15px; display: flex; flex-direction: row;">
+                <input
+                    placeholder="enter guess"
+                    id="guessInput"
+                    style="padding-left: 5px; font-size: 22px;"
+                />
+                <button onClick="handleGuessPressed()" id="guessButton">
+                    Guess!
+                </button>
+                <button
+                    style="margin-left: 15px;"
+                    onClick="handleGiveUpPressed()"
+                    id="giveUpButton"
+                >
+                    Give Up
+                </button>
+            </div>
+
+            <hr />
+            <div>
+                <div
+                    id="giveUpMessageContainer"
+                    style="
+                        display: none;
+                        background-color: #728fce;
+                        color: white;
+                        max-width: 500px;
+                        font-size: 22px;
+                        padding: 10px;
+                        text-align: center;
+                    "
+                ></div>
+                <div
+                    id="victoryMessageContainer"
+                    style="
+                        display: none;
+                        background-color: #12ad2b;
+                        color: white;
+                        max-width: 500px;
+                        font-size: 22px;
+                        padding: 10px;
+                        text-align: center;
+                    "
+                ></div>
+                <div
+                    id="errorMessageContainer"
+                    style="
+                        display: none;
+                        background-color: #8c001a;
+                        color: white;
+                        max-width: 500px;
+                        font-size: 22px;
+                        padding: 10px;
+                        text-align: center;
+                    "
+                ></div>
+                <div id="tableContainer"></div>
+            </div>
+        </div>
+        <script>
+            const apiUrl = "http://localhost:8000";
+            const seedSeed = new Date();
+            const seed = seedSeed.setHours(0, 0, 0, 0);
+            fetch(`${apiUrl}/initial_similarity/${seed}`)
+                .then((r) => r.json())
+                .then((r) => {
+                    const nearestNeighborSpan = document.getElementById(
+                        "neighborSimilarity"
+                    );
+                    nearestNeighborSpan.innerHTML = r.similiarity;
+                });
+            const guesses = [];
+
+            const input = document.getElementById("guessInput");
+            input.addEventListener("keyup", (event) =>
+                inputKeyUpHandler(event)
+            );
+
+            const clearErrorMessage = () => {
+                const errorContainer = document.getElementById(
+                    "errorMessageContainer"
+                );
+                errorContainer.style.display = "none";
+            };
+
+            const handleGuessPressed = () => {
+                clearErrorMessage();
+                const input = document.getElementById("guessInput");
+                const guess = input.value;
+                fetch(`${apiUrl}/guess/${seed}/${encodeURIComponent(guess)}`)
+                    .then((r) => r.json())
+                    .then((r) => {
+                        input.value = "";
+                        if (r.known && !r.correctAnswer) {
+                            updateGuessTable(r);
+                        } else if (!r.known) {
+                            const errorContainer = document.getElementById(
+                                "errorMessageContainer"
+                            );
+                            errorContainer.innerHTML = `Sorry, ${r.guess} is not in our dictionary`;
+                            errorContainer.style.display = "block";
+                        } else if (r.correctAnswer) {
+                            const victoryMessageContainer = document.getElementById(
+                                "victoryMessageContainer"
+                            );
+                            victoryMessageContainer.innerHTML = `You guessed it!  The secret word was ${r.guess}`;
+                            victoryMessageContainer.style.display = "block";
+                            const giveUpButton = document.getElementById(
+                                "giveUpButton"
+                            );
+                            giveUpButton.disabled = true;
+                        }
+                    });
+            };
+            const updateGuessTable = (fullGuess) => {
+                const guess = fullGuess.guess;
+                const similarity = fullGuess.similiarity;
+                const tableContainer = document.getElementById(
+                    "tableContainer"
+                );
+                while (tableContainer.firstChild) {
+                    tableContainer.removeChild(tableContainer.firstChild);
+                }
+                const table = document.createElement("table");
+                const headerRow = document.createElement("tr");
+                ["", "Guess", "Similarity"].forEach((header) => {
+                    const dataNode = document.createElement("th");
+                    const text = document.createTextNode(header);
+                    dataNode.appendChild(text);
+                    headerRow.appendChild(dataNode);
+                });
+                table.appendChild(headerRow);
+
+                [fullGuess, ...guesses].forEach((guess, idx) => {
+                    const row = document.createElement("tr");
+                    row.classList.add("bodyRow");
+                    [1+guesses.length-idx, guess.guess, guess.similiarity].forEach((d) => {
+                        const dataNode = document.createElement("td");
+                        const text = document.createTextNode(d);
+                        dataNode.appendChild(text);
+                        row.appendChild(dataNode);
+                    });
+                    table.appendChild(row);
+                });
+                tableContainer.appendChild(table);
+                guesses.push(fullGuess);
+                guesses.sort((g1, g2) => {
+                    const g1Neg = g1.rawSimilarity < 0;
+                    const g2Neg = g2.rawSimilarity < 0;
+                    if (g1Neg && g2Neg) {
+                        return g1.rawSimilarity < g2.rawSimilarity ? 1 : -1;
+                    } else if (!g1Neg && !g2Neg) {
+                        return g1.rawSimilarity < g2.rawSimilarity ? -1 : 1;
+                    } else {
+                        return g1.rawSimilarity < g2.rawSimilarity ? 1 : -1;
+                    }
+                });
+            };
+            const handleGiveUpPressed = () => {
+                fetch(`${apiUrl}/give_up/${seed}`)
+                    .then((r) => r.json())
+                    .then((r) => {
+                        const secretWord = r.secretWord;
+                        const giveUpContainer = document.getElementById(
+                            "giveUpMessageContainer"
+                        );
+                        giveUpContainer.innerHTML = `The secret word was: ${secretWord}`;
+                        giveUpContainer.style.display = "block";
+                        const giveUpButton = document.getElementById(
+                            "giveUpButton"
+                        );
+                        giveUpButton.disabled = true;
+                    });
+            };
+
+            const inputKeyUpHandler = (event) => {
+                if (event.keyCode === 13) {
+                    event.preventDefault();
+                    document.getElementById("guessButton").click();
+                }
+            };
+        </script>
+    </body>
+</html>

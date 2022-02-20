@@ -12,7 +12,10 @@ from gensim.similarities.annoy import AnnoyIndexer
 import numpy
 
 CACHE_DIR = "cache"
-USE_GOOGLE = True
+
+
+class UnknownWordException(Exception):
+    pass
 
 
 def get_corpus_and_dictionary_and_freshness():
@@ -80,46 +83,20 @@ def create_similarity_matrix(name, word_vectors, dictionary, tfidf):
     return similarity_matrix
 
 
-print("Importing Corpus")
-corpus, dictionary, need_to_remake = get_corpus_and_dictionary_and_freshness()
-if need_to_remake:
-    print("looks like an updated dictionary!")
-print("Creating Initial W2V Model")
-if USE_GOOGLE:
-    word_vectors_file_name = "google_word2vec.model"
-    create = partial(use_google_word_vectors, word_vectors_file_name)
-else:
-    word_vectors_file_name = "word2vec.model"
-    create = partial(create_word_vectors, corpus, word_vectors_file_name)
-word_vectors = create_or_load(
-    word_vectors_file_name,
-    creation_func=create,
-    load_func=models.KeyedVectors.load,
-    remake=need_to_remake,
-)
-# print("Creating TFIDF")
-# tfidf = create_or_load(
-#     "tfidf.model",
-#     creation_func=partial(models.TfidfModel, dictionary=dictionary),
-#     load_func=models.TfidfModel.load,
-#     remake=need_to_remake,
-# )
-# tfidf_corpus = tfidf[[dictionary.doc2bow(doc) for doc in corpus]]
-
-# print("Creating indexers")
-# similarity_matrix_file_name = "similarity.matrix"
-# similarity_matrix = create_or_load(
-#     similarity_matrix_file_name,
-#     creation_func=partial(
-#         create_similarity_matrix,
-#         similarity_matrix_file_name,
-#         word_vectors,
-#         dictionary,
-#         tfidf,
-#     ),
-#     load_func=similarities.SparseTermSimilarityMatrix.load,
-#     remake=need_to_remake,
-# )
+def get_word_vectors(corpus, USE_GOOGLE=False, need_to_remake=False):
+    if USE_GOOGLE:
+        word_vectors_file_name = "google_word2vec.model"
+        create = partial(use_google_word_vectors, word_vectors_file_name)
+    else:
+        word_vectors_file_name = "word2vec.model"
+        create = partial(create_word_vectors, corpus, word_vectors_file_name)
+    word_vectors = create_or_load(
+        word_vectors_file_name,
+        creation_func=create,
+        load_func=models.KeyedVectors.load,
+        remake=need_to_remake,
+    )
+    return word_vectors
 
 
 def similarity_formatter(raw_sim):
@@ -128,19 +105,37 @@ def similarity_formatter(raw_sim):
     return raw_sim
 
 
-def play(dictionary, word_vectors):
+def get_similarity(secret_word, guess, word_vectors):
+    try:
+        sim = word_vectors.similarity(secret_word, guess)
+    except Exception:
+        raise UnknownWordException
+    return sim
+
+
+def get_most_similar_word_similarity(secret_word, word_vectors):
+    most_similar = word_vectors.similar_by_word(secret_word)
+    return most_similar[0][1]
+
+
+def choose_secret_word(seed, dictionary, word_vectors):
+    random_gen = random.Random(seed)
     chosen = False
+    dict_words = list(dictionary.values())
     while not chosen:
-        secret_word = random.choice(list(dictionary.values()))
+        secret_word = random_gen.choice(dict_words)
         try:
             word_vectors.similarity(secret_word, secret_word)
-            chosen = True
+            break
         except:
             pass
+    return secret_word
 
-    most_similar = word_vectors.similar_by_word(secret_word)
+
+def play(dictionary, word_vectors):
+    secret_word = choose_secret_word(None, dictionary, word_vectors)
     print(
-        f"The most similar word is {similarity_formatter(most_similar[0][1])} similar to the secret word"
+        f"The most similar word is {similarity_formatter(get_most_similar_word_similarity(secret_word, word_vectors))} similar to the secret word"
     )
 
     while 1:
@@ -150,12 +145,12 @@ def play(dictionary, word_vectors):
             break
         if w1 == secret_word:
             print("You guessed it!")
-        good_sim = f"I dont know {w1}"
-        try:
-            good_sim = word_vectors.similarity(secret_word, w1)
-        except Exception:
-            pass
-        print(f"similarity={similarity_formatter(good_sim)}")
+            break
+        sim = get_similarity(secret_word, w1, word_vectors)
+        print(f"similarity={similarity_formatter(sim)}")
 
 
-play(dictionary, word_vectors)
+if __name__ == "__main__":
+    corpus, dictionary, need_to_remake = get_corpus_and_dictionary_and_freshness()
+    word_vectors = get_word_vectors(corpus, USE_GOOGLE=False, need_to_remake=False)
+    play(dictionary, word_vectors)
