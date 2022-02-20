@@ -129,5 +129,6 @@ dmypy.json
 .pyre/
 
 exports/*
+cache/*
 discord_bot_info.py
 
