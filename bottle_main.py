@@ -22,7 +22,6 @@ app = bottle.app()
 @app.route("/initial_similarity/<seed:int>")
 def get_initial_similarity(seed):
     secret_word = choose_secret_word(seed, dictionary, word_vectors)
-    print(secret_word)
     most_similar_word_similarity = get_most_similar_word_similarity(
         secret_word, word_vectors
     )
@@ -62,4 +61,4 @@ def give_up(seed):
 
 
 app.install(cors_plugin("*"))
-app.run(host="localhost", port=8000)
+app.run(host="localhost", port=8000, server="gunicorn", workers=2)
