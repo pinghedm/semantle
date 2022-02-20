@@ -137,7 +137,16 @@
                     .then((r) => {
                         input.value = "";
                         if (r.known && !r.correctAnswer) {
+                            if (guesses.map(g => g.guess).includes(r.guess)){
+                                const errorContainer = document.getElementById(
+                                    "errorMessageContainer"
+                                );
+                                errorContainer.innerHTML = `Already tried ${r.guess}`;
+                                errorContainer.style.display = "block";
+                            }else{
+                                
                             updateGuessTable(r);
+                            }
                         } else if (!r.known) {
                             const errorContainer = document.getElementById(
                                 "errorMessageContainer"
@@ -195,7 +204,7 @@
                     if (g1Neg && g2Neg) {
                         return g1.rawSimilarity < g2.rawSimilarity ? 1 : -1;
                     } else if (!g1Neg && !g2Neg) {
-                        return g1.rawSimilarity < g2.rawSimilarity ? -1 : 1;
+                        return g1.rawSimilarity < g2.rawSimilarity ? 1 : -1;
                     } else {
                         return g1.rawSimilarity < g2.rawSimilarity ? 1 : -1;
                     }

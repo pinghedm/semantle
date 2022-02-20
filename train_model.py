@@ -61,6 +61,7 @@ def load_indexer(name):
 
 def create_word_vectors(corpus, name):
     model = models.Word2Vec(sentences=corpus, vector_size=20, epochs=100)
+    word_vectors = model.wv
     word_vectors.save(f"{CACHE_DIR}/{name}")
     return word_vectors
 
